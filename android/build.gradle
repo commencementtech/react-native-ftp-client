@@ -43,6 +43,6 @@ repositories {
 }
 
 dependencies {
-    compile 'com.facebook.react:react-native:+'
-    compile 'commons-net:commons-net:3.3'
+    implementation 'com.facebook.react:react-native:+'
+    implementation 'commons-net:commons-net:3.10.0'
 }

@@ -35,6 +35,8 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.TimeZone;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class RNFtpClientModule extends ReactContextBaseJavaModule {
 
@@ -99,6 +101,7 @@ public class RNFtpClientModule extends ReactContextBaseJavaModule {
   }
 
   private String getStringByType(int type){
+    Log.d("getStringBy||FileType", "File Type: " + type);
     switch (type)
     {
       case FTPFile.DIRECTORY_TYPE:
@@ -122,6 +125,26 @@ public class RNFtpClientModule extends ReactContextBaseJavaModule {
     return sdf.format(date);
   }
 
+  private static String[] parseLine(String line) {
+    // Regular expression to match the fields
+    String regex = "([d-])([r-])([w-])([x-])\\s+(\\d+)\\s+(\\S+)\\s+(\\S+)\\s+(\\d+)\\s+(\\S+\\s+\\d+\\s+\\d+:\\d+)";
+    Pattern pattern = Pattern.compile(regex);
+    Matcher matcher = pattern.matcher(line);
+
+    if (matcher.find()) {
+      // Extracting matched groups
+      String permissions = matcher.group(1);
+      String owner = matcher.group(6);
+      String group = matcher.group(7);
+      String size = matcher.group(8);
+      String timestamp = matcher.group(9);
+
+      return new String[]{permissions, owner, group, size, timestamp};
+    } else {
+      return null; // Pattern not found in the line
+    }
+  }
+
   @ReactMethod
   public void list(final String path, final Promise promise){
     new Thread(new Runnable() {
@@ -134,6 +157,28 @@ public class RNFtpClientModule extends ReactContextBaseJavaModule {
           files = client.listFiles(path);
           WritableArray arrfiles = Arguments.createArray();
           for (FTPFile file : files) {
+            Log.d("list||FileType", "getGroup: " + file.getGroup());
+            Log.d("list||FileType", "getHardLinkCount: " + file.getHardLinkCount());
+            Log.d("list||FileType", "getLink: " + file.getLink());
+            Log.d("list||FileType", "getName: " + file.getName());
+            Log.d("list||FileType", "getRawListing: " + file.getRawListing());
+            Log.d("list||FileType", "getSize: " + file.getSize());
+            Log.d("list||FileType", "getTimestamp: " + file.getTimestamp());
+            Log.d("list||FileType", "getTimestampInstant: " + file.getTimestampInstant());
+            Log.d("list||FileType", "getType: " + file.getType());
+            Log.d("list||FileType", "getUser: " + file.getUser());
+            Log.d("list||FileType", "isDirectory: " + file.isDirectory());
+            Log.d("list||FileType", "isFile: " + file.isFile());
+            Log.d("list||FileType", "isSymbolicLink: " + file.isSymbolicLink());
+            Log.d("list||FileType", "isUnknown: " + file.isUnknown());
+            Log.d("list||FileType", "isValid: " + file.isValid());
+            Log.d("list||FileType", "toFormattedString: " + file.toFormattedString());
+            Log.d("list||FileType", "toString: " + file.toString());
+            String[] data = parseLine(file.getRawListing());
+            for (String item : data) {
+              Log.d("list||", "toString: " + item.toString());
+//              System.out.println(item);
+            }
             WritableMap tmp = Arguments.createMap();
             tmp.putString("name",file.getName());
             tmp.putInt("size",(int)file.getSize());
