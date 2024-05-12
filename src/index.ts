@@ -14,7 +14,19 @@ export interface ListItem{
         type: FtpFileType,
         size:number,
         timestamp:Date,
+        group: string,
+        hardLinkCount: number,
+        link: string,
+        user: string,
+        isDirectory: boolean,
+        isFile: boolean,
+        isSymbolicLink: boolean,
+        isUnknown: boolean,
+        isValid: boolean,
+        permissions: string,
+        owner: string
     };
+
 export interface FtpSetupConfiguration{
         ip_address:string,
         port:number,
@@ -43,12 +55,37 @@ module FtpClient {
     
     export async function list (remote_path:string):Promise<Array<ListItem>> {
         const files = await RNFtpClient.list(remote_path);
-        return files.map((f:{name:string,type:string,size:number,timestamp:string})=> {
+        return files.map((f:{name:string,
+            type: FtpFileType,
+            size:number,
+            timestamp:Date,
+            group: string,
+            hardLinkCount: number,
+            link: string,
+            user: string,
+            isDirectory: boolean,
+            isFile: boolean,
+            isSymbolicLink: boolean,
+            isUnknown: boolean,
+            isValid: boolean,
+            permissions: string,
+            owner: string,})=> {
             return {
                 name:f.name,
                 type:getEnumFromString(f.type),
                 size:+f.size,
-                timestamp:new Date(f.timestamp)
+                timestamp:new Date(f.timestamp),
+                group:f.group,
+                hardLinkCount:f.hardLinkCount,
+                link:f.link,
+                user: f.user,
+                isDirectory: f.isDirectory,
+                isFile:f.isFile,
+                isSymbolicLink: f.isSymbolicLink,
+                isUnknown: f.isUnknown,
+                isValid: f.isValid,
+                permissions: f.permissions,
+                owner: f.owner
             };});
     }
 
@@ -80,3 +117,10 @@ module FtpClient {
 };
 
 export default FtpClient;
+// rawListing: f.rawListing,
+//     toFormattedString: f.toFormattedString,
+//     toString: f.toString,
+
+// rawListing: string,
+//     toFormattedString: string,
+//     toString: string,

@@ -6,10 +6,21 @@ export declare const enum FtpFileType {
     Unknown = "unknown"
 }
 export interface ListItem {
-    name: string;
-    type: FtpFileType;
-    size: number;
-    timestamp: Date;
+    name:string,
+    type: FtpFileType,
+    size:number,
+    timestamp:Date,
+    group: string,
+    hardLinkCount: number,
+    link: string,
+    user: string,
+    isDirectory: boolean,
+    isFile: boolean,
+    isSymbolicLink: boolean,
+    isUnknown: boolean,
+    isValid: boolean,
+    permissions: string,
+    owner: string,
 }
 export interface FtpSetupConfiguration {
     ip_address: string;
@@ -32,3 +43,6 @@ declare module FtpClient {
     function cancelDownloadFile(token: string): Promise<void>;
 }
 export default FtpClient;
+// rawListing: string,
+//     toFormattedString: string,
+//     toString: string,

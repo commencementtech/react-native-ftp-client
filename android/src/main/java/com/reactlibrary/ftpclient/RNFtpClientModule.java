@@ -101,7 +101,6 @@ public class RNFtpClientModule extends ReactContextBaseJavaModule {
   }
 
   private String getStringByType(int type){
-    Log.d("getStringBy||FileType", "File Type: " + type);
     switch (type)
     {
       case FTPFile.DIRECTORY_TYPE:
@@ -126,23 +125,13 @@ public class RNFtpClientModule extends ReactContextBaseJavaModule {
   }
 
   private static String[] parseLine(String line) {
-    // Regular expression to match the fields
-    String regex = "([d-])([r-])([w-])([x-])\\s+(\\d+)\\s+(\\S+)\\s+(\\S+)\\s+(\\d+)\\s+(\\S+\\s+\\d+\\s+\\d+:\\d+)";
-    Pattern pattern = Pattern.compile(regex);
-    Matcher matcher = pattern.matcher(line);
+      String[] parts = line.split("\\s+");
 
-    if (matcher.find()) {
-      // Extracting matched groups
-      String permissions = matcher.group(1);
-      String owner = matcher.group(6);
-      String group = matcher.group(7);
-      String size = matcher.group(8);
-      String timestamp = matcher.group(9);
-
-      return new String[]{permissions, owner, group, size, timestamp};
-    } else {
-      return null; // Pattern not found in the line
-    }
+      String permissions = !parts[0].trim().isEmpty() ? parts[0].trim() : null;
+      String owner = !parts[2].trim().isEmpty() ? parts[2].trim() : null;
+      String group = !parts[3].trim().isEmpty() ? parts[3].trim() : null;
+      String size = !parts[4].trim().isEmpty() ? parts[4].trim() : null;
+      return new String[]{permissions, owner, group, size};
   }
 
   @ReactMethod
@@ -157,33 +146,28 @@ public class RNFtpClientModule extends ReactContextBaseJavaModule {
           files = client.listFiles(path);
           WritableArray arrfiles = Arguments.createArray();
           for (FTPFile file : files) {
-            Log.d("list||FileType", "getGroup: " + file.getGroup());
-            Log.d("list||FileType", "getHardLinkCount: " + file.getHardLinkCount());
-            Log.d("list||FileType", "getLink: " + file.getLink());
-            Log.d("list||FileType", "getName: " + file.getName());
-            Log.d("list||FileType", "getRawListing: " + file.getRawListing());
-            Log.d("list||FileType", "getSize: " + file.getSize());
-            Log.d("list||FileType", "getTimestamp: " + file.getTimestamp());
-            Log.d("list||FileType", "getTimestampInstant: " + file.getTimestampInstant());
-            Log.d("list||FileType", "getType: " + file.getType());
-            Log.d("list||FileType", "getUser: " + file.getUser());
-            Log.d("list||FileType", "isDirectory: " + file.isDirectory());
-            Log.d("list||FileType", "isFile: " + file.isFile());
-            Log.d("list||FileType", "isSymbolicLink: " + file.isSymbolicLink());
-            Log.d("list||FileType", "isUnknown: " + file.isUnknown());
-            Log.d("list||FileType", "isValid: " + file.isValid());
-            Log.d("list||FileType", "toFormattedString: " + file.toFormattedString());
-            Log.d("list||FileType", "toString: " + file.toString());
-            String[] data = parseLine(file.getRawListing());
-            for (String item : data) {
-              Log.d("list||", "toString: " + item.toString());
-//              System.out.println(item);
-            }
+            String[] rawData = parseLine(file.getRawListing());
             WritableMap tmp = Arguments.createMap();
+            tmp.putString("group",file.getGroup());
+            tmp.putInt("hardLinkCount", file.getHardLinkCount());
+            tmp.putString("link", file.getLink());
+            tmp.putString("link", file.getLink());
             tmp.putString("name",file.getName());
+            tmp.putString("rawListing",file.getRawListing());
             tmp.putInt("size",(int)file.getSize());
-            tmp.putString("timestamp",ISO8601StringFromCalender(file.getTimestamp()));
+            tmp.putString("timestamp", ISO8601StringFromCalender(file.getTimestamp()));
             tmp.putString("type",getStringByType(file.getType()));
+            tmp.putString("user",file.getUser());
+            tmp.putBoolean("isDirectory",file.isDirectory());
+            tmp.putBoolean("isFile",file.isFile());
+            tmp.putBoolean("isSymbolicLink",file.isSymbolicLink());
+            tmp.putBoolean("isUnknown",file.isUnknown());
+            tmp.putBoolean("isValid",file.isValid());
+            tmp.putString("toFormattedString",file.toFormattedString());
+            tmp.putString("toString",file.toString());
+            tmp.putString("permissions",rawData[0]);
+            tmp.putString("owner",rawData[1]);
+
             arrfiles.pushMap(tmp);
           }
           promise.resolve(arrfiles);
