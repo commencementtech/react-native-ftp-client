@@ -167,6 +167,16 @@ RCT_REMAP_METHOD(setup,
 
     return [dateFormatter stringFromDate:date];
 }
+- (NSArray *)parseLine:(NSString *)line {
+    NSArray *parts = [line componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+    
+    NSString *permissions = ([parts[0] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]].length > 0) ? [parts[0] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]] : nil;
+    NSString *owner = ([parts[2] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]].length > 0) ? [parts[2] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]] : nil;
+    NSString *group = ([parts[3] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]].length > 0) ? [parts[3] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]] : nil;
+    NSString *size = ([parts[4] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]].length > 0) ? [parts[4] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]] : nil;
+    
+    return @[permissions, owner, group, size];
+}
 
 RCT_REMAP_METHOD(list,
                  listRemotePath:(NSString*)remotePath
@@ -181,12 +191,34 @@ RCT_REMAP_METHOD(list,
     request.successAction = ^(Class resultClass, id result) {
         NSArray *resultArray = (NSArray *)result;
         NSMutableArray *files = [[NSMutableArray alloc] initWithCapacity:[resultArray count]];
+		
+		// Creating boolean NSNumber objects
+		NSNumber *boolValueTrue = [NSNumber numberWithBool:YES];
+		NSNumber *boolValueFalse = [NSNumber numberWithBool:NO];
+		
         for (NSDictionary* file in resultArray) {
+			NSArray *rawData = [self parseLine:[file[(__bridge NSString *)kCFFTPResourceRawListing]];
             NSString* name = file[(__bridge NSString *)kCFFTPResourceName];
             NSInteger type = [file[(__bridge NSString *)kCFFTPResourceType] integerValue];
             NSInteger size = [file[(__bridge NSString *)kCFFTPResourceSize] integerValue];
             NSDate* timestamp = file[(__bridge NSString *)kCFFTPResourceModDate];
-            NSDictionary* f = @{@"name":name,@"type":[self typeStringFromType:type],@"size":@(size),@"timestamp":[self ISO8601StringFromNSDate:timestamp]};
+			NSString* group = file[(__bridge NSString *)kCFFTPResourceGroup];
+			NSInteger* hardLinkCount = file[(__bridge NSString *)kCFFTPResourceHardLinkCount];
+			NSString* link = file[(__bridge NSString *)kCFFTPResourceLink];
+			NSString* rawListing = file[(__bridge NSString *)kCFFTPResourceRawListing];
+			NSString* user = file[(__bridge NSString *)kCFFTPResourceUser];
+			NSNumber* isDirectory = file[(__bridge NSNumber *)kCFFTPResourceisDirectory];
+			NSNumber* isFile = file[(__bridge NSNumber *)kCFFTPResourceisFile];
+			NSNumber* isSymbolicLink = file[(__bridge NSNumber *)kCFFTPResourceisSymbolicLink];
+			NSNumber* isUnknown = file[(__bridge NSNumber *)kCFFTPResourceisUnknown];
+			NSNumber* isValid = file[(__bridge NSNumber *)kCFFTPResourceisValid];
+			NSString* toFormattedString = file[(__bridge NSString *)kCFFTPResourcetoFormattedString];
+			NSString* toString = file[(__bridge NSString *)kCFFTPResourcetoString];
+			NSString* permissions = rawData[0];
+			NSString* owner = rawData[1];
+			
+            //NSDictionary* f = @{@"name":name,@"type":[self typeStringFromType:type],@"size":@(size),@"timestamp":[self ISO8601StringFromNSDate:timestamp]};
+			NSDictionary* f = @{@"name":name,@"type":[self typeStringFromType:type],@"size":@(size),@"timestamp":[self ISO8601StringFromNSDate:timestamp],@"group":@(group),@"hardLinkCount":@(hardLinkCount),@"link":@(link),@"rawListing":@(rawListing),@"user":@(user),@"isDirectory":@(isDirectory),@"isFile":@(isFile),@"isSymbolicLink":@(isSymbolicLink),@"isUnknown":@(isUnknown),@"isValid":@(isValid),@"toFormattedString":@(toFormattedString),@"toString":@(toString),@"permissions":@(permissions),@"owner":@(owner)};
             [files addObject:f];
         }
         resolve([files copy]);
@@ -200,6 +232,38 @@ RCT_REMAP_METHOD(list,
     [request start];
 
 }
+// RCT_REMAP_METHOD(list,
+//                  listRemotePath:(NSString*)remotePath
+//                  resolver:(RCTPromiseResolveBlock)resolve
+//                  rejecter:(RCTPromiseRejectBlock)reject)
+// {
+//     LxFTPRequest *request = [LxFTPRequest resourceListRequest];
+//     request.serverURL = [[NSURL URLWithString:self->url] URLByAppendingPathComponent:remotePath];
+//     request.username = self->user;
+//     request.password = self->password;
+
+//     request.successAction = ^(Class resultClass, id result) {
+//         NSArray *resultArray = (NSArray *)result;
+//         NSMutableArray *files = [[NSMutableArray alloc] initWithCapacity:[resultArray count]];
+//         for (NSDictionary* file in resultArray) {
+//             NSString* name = file[(__bridge NSString *)kCFFTPResourceName];
+//             NSInteger type = [file[(__bridge NSString *)kCFFTPResourceType] integerValue];
+//             NSInteger size = [file[(__bridge NSString *)kCFFTPResourceSize] integerValue];
+//             NSDate* timestamp = file[(__bridge NSString *)kCFFTPResourceModDate];
+//             NSDictionary* f = @{@"name":name,@"type":[self typeStringFromType:type],@"size":@(size),@"timestamp":[self ISO8601StringFromNSDate:timestamp]};
+//             [files addObject:f];
+//         }
+//         resolve([files copy]);
+//     };
+//     request.failAction = ^(CFStreamErrorDomain domain, NSInteger error, NSString *errorMessage) {
+//         NSLog(@"domain = %ld, error = %ld, errorMessage = %@", domain, error, errorMessage); //
+//         NSError* nsError = [self makeErrorFromDomain:domain errorCode:error errorMessage:errorMessage];
+//         NSString* message = [self makeErrorMessageWithPrefix:@"list error" domain:domain errorCode:error errorMessage:errorMessage];
+//         reject(RNFTPCLIENT_ERROR_CODE_LIST,message,nsError);
+//     };
+//     [request start];
+
+// }
 
 -(NSString*) makeTokenByLocalPath:(NSString*) localPath andRemotePath:(NSString*) remotePath
 {
