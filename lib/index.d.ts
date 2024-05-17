@@ -39,7 +39,9 @@ declare module FtpClient {
     }) => void): EmitterSubscription;
     function remove(remote_path: string): Promise<void>;
     function disconnect(): Promise<void>;
+    function login(): Promise<void>;
     function systemName(): Promise<void>;
+    function fingerprint(): Promise<void>;
     const ERROR_MESSAGE_CANCELLED: string;
     function downloadFile(local_path: string, remote_path: string): Promise<void>;
     function cancelDownloadFile(token: string): Promise<void>;

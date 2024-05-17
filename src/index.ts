@@ -1,4 +1,4 @@
-import { NativeModules, NativeEventEmitter,EmitterSubscription } from 'react-native';
+import { NativeModules, NativeEventEmitter, EmitterSubscription, Alert } from 'react-native';
 
 const { RNFtpClient } = NativeModules;
 const RNFtpClientEventEmitter = new NativeEventEmitter(RNFtpClient);
@@ -54,6 +54,7 @@ module FtpClient {
     }
     
     export async function list (remote_path:string):Promise<Array<ListItem>> {
+        
         const files = await RNFtpClient.list(remote_path);
         return files.map((f:{name:string,
             type: FtpFileType,
@@ -108,6 +109,11 @@ module FtpClient {
     export async function disconnect():Promise<void>{
       return RNFtpClient.disconnect();
     }
+
+    export async function login():Promise<void>{
+        return RNFtpClient.loginFTP();
+    }
+  
 
     export async function getSystemName():Promise<void>{
       return RNFtpClient.getSystemName();
