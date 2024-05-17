@@ -105,6 +105,14 @@ module FtpClient {
         return RNFtpClient.remove(remote_path);
     }
 
+    export async function disconnect():Promise<void>{
+      return RNFtpClient.disconnect();
+    }
+
+    export async function getSystemName():Promise<void>{
+      return RNFtpClient.getSystemName();
+    }
+
     export const ERROR_MESSAGE_CANCELLED:string = RNFtpClient.ERROR_MESSAGE_CANCELLED;
 
     export async function downloadFile (local_path:string,remote_path:string):Promise<void> {

@@ -61,6 +61,8 @@ public class RNFtpClientModule extends ReactContextBaseJavaModule {
   private final static String RNFTPCLIENT_ERROR_CODE_REMOVE = "RNFTPCLIENT_ERROR_CODE_REMOVE";
   private final static String RNFTPCLIENT_ERROR_CODE_LOGOUT = "RNFTPCLIENT_ERROR_CODE_LOGOUT";
   private final static String RNFTPCLIENT_ERROR_CODE_DOWNLOAD = "RNFTPCLIENT_ERROR_CODE_DOWNLOAD";
+  private final static String RNFTPCLIENT_ERROR_CODE_SYSTEMNAME = "RNFTPCLIENT_ERROR_CODE_SYSTEMNAME";
+  private final static String RNFTPCLIENT_ERROR_CODE_DICONNECT = "RNFTPCLIENT_ERROR_CODE_DICONNECT";
 
   private final static String ERROR_MESSAGE_CANCELLED = "ERROR_MESSAGE_CANCELLED";
 
@@ -333,6 +335,34 @@ public class RNFtpClientModule extends ReactContextBaseJavaModule {
     }
     uploadingTasks.remove(token);
     promise.resolve(true);
+  }
+
+  @ReactMethod
+  public void disconnect(final Promise promise){
+    FTPClient client = new FTPClient();
+    try{
+      logout(client);
+      promise.resolve(true);
+    }catch (Exception e){
+      Log.d(TAG,"disconnect error",e);
+      promise.reject(RNFTPCLIENT_ERROR_CODE_DICONNECT, e.getMessage());
+    }finally {
+      logout(client);
+      promise.resolve(true);
+    }
+    promise.resolve(false);
+  }
+
+  @ReactMethod
+  public void getSystemName(final Promise promise){
+    FTPClient client = new FTPClient();
+    try{
+      String systemType = client.getSystemType();
+      promise.resolve(systemType);
+    }catch (Exception e){
+      Log.d(TAG,"getSystemName error",e);
+      promise.reject(RNFTPCLIENT_ERROR_CODE_SYSTEMNAME, e.getMessage());
+    }
   }
 
   private String getLocalFilePath(String path, String remotePath){
