@@ -55,8 +55,8 @@ module FtpClient {
     
     export async function list (remote_path:string):Promise<Array<ListItem>> {
         
-        const files = await RNFtpClient.list(remote_path);
-        return files.map((f:{name:string,
+        const files = await RNFtpClient.getDirectory(remote_path);
+        return files?.data.map((f:{name:string,
             type: FtpFileType,
             size:number,
             timestamp:Date,
@@ -91,11 +91,11 @@ module FtpClient {
     }
 
     export async function uploadFile (local_path:string,remote_path:string):Promise<void> {
-        return RNFtpClient.uploadFile(local_path,remote_path);
+        return RNFtpClient.upload(local_path,remote_path);
     }
 
     export async function cancelUploadFile (token:string):Promise<void> {
-        return RNFtpClient.cancelUploadFile(token);
+        return RNFtpClient.cancelUpload(token);
     }
 
     export function addProgressListener(listener: ( data:{token:string, percentage:number}) => void):EmitterSubscription  {
@@ -103,7 +103,7 @@ module FtpClient {
     }
 
     export async function remove(remote_path:string):Promise<void>{
-        return RNFtpClient.remove(remote_path);
+        return RNFtpClient.delete(remote_path);
     }
 
     export async function disconnect():Promise<void>{
@@ -111,30 +111,23 @@ module FtpClient {
     }
 
     export async function login():Promise<void>{
-        return RNFtpClient.loginFTP();
+        return RNFtpClient.login();
     }
   
 
     export async function getSystemName():Promise<void>{
-      return RNFtpClient.getSystemName();
+      return RNFtpClient.getSystemDetails();
     }
 
     export const ERROR_MESSAGE_CANCELLED:string = RNFtpClient.ERROR_MESSAGE_CANCELLED;
 
     export async function downloadFile (local_path:string,remote_path:string):Promise<void> {
-        return RNFtpClient.downloadFile(local_path,remote_path);
+        return RNFtpClient.download(local_path,remote_path);
     }
 
     export async function cancelDownloadFile (token:string):Promise<void> {
-        return RNFtpClient.cancelDownloadFile(token);
+        return RNFtpClient.cancelDownload(token);
     }
 };
 
 export default FtpClient;
-// rawListing: f.rawListing,
-//     toFormattedString: f.toFormattedString,
-//     toString: f.toString,
-
-// rawListing: string,
-//     toFormattedString: string,
-//     toString: string,

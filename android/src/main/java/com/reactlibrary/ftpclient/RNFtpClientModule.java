@@ -1,50 +1,31 @@
 package com.reactlibrary.ftpclient;
 
-import androidx.annotation.Nullable;
+import static com.reactlibrary.ftpclient.Utils.ISO8601StringFromCalender;
+import static com.reactlibrary.ftpclient.Utils.getLocalFilePath;
+import static com.reactlibrary.ftpclient.Utils.getStringByType;
+import static com.reactlibrary.ftpclient.Utils.makeDownloadToken;
+import static com.reactlibrary.ftpclient.Utils.makeToken;
+import static com.reactlibrary.ftpclient.Utils.parseLine;
 
-import android.os.Build;
 import android.util.Log;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSocket;
+import androidx.annotation.Nullable;
 
-import java.io.*;
-import java.lang.reflect.Method;
-import java.net.Socket;
-import java.util.*;
-
-import org.apache.commons.net.PrintCommandListener;
-import org.apache.commons.net.ftp.FTPReply;
-import org.apache.commons.net.ftp.FTPSClient;
-
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.SSLSocketFactory;
-
-import java.security.MessageDigest;
-import java.security.cert.Certificate;
-import java.security.cert.X509Certificate;
-
-import com.facebook.react.bridge.*;
+import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
-import com.facebook.react.bridge.Callback;
-import com.facebook.react.modules.core.DeviceEventManagerModule;
-import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableArray;
-import com.facebook.react.bridge.Arguments;
+import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.modules.core.DeviceEventManagerModule;
 
+import org.apache.commons.net.PrintCommandListener;
 import org.apache.commons.net.ftp.FTP;
 import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPFile;
 import org.apache.commons.net.ftp.FTPSClient;
-
-import org.apache.commons.net.util.TrustManagerUtils;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -53,34 +34,50 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Date;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.lang.reflect.Method;
+import java.security.MessageDigest;
+import java.security.cert.Certificate;
+import java.util.Arrays;
 import java.util.HashMap;
-import java.util.TimeZone;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+
+import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLSession;
 
 public class RNFtpClientModule extends ReactContextBaseJavaModule {
+
+    private final FTPClientManager ftpClientManager = FTPClientManager.getInstance();
+    private Promise connectPromise;
 
     private static final String TAG = "RNFtpClient";
     private final static int MAX_UPLOAD_COUNT = 10;
     private final static int MAX_DOWNLOAD_COUNT = 10;
-    private final static String RNFTPCLIENT_PROGRESS_EVENT_NAME = "Progress";
-    private final static String RNFTPCLIENT_ERROR_CODE_LOGIN = "RNFTPCLIENT_ERROR_CODE_LOGIN";
-    private final static String RNFTPCLIENT_ERROR_CODE_LIST = "RNFTPCLIENT_ERROR_CODE_LIST";
-    private final static String RNFTPCLIENT_ERROR_CODE_UPLOAD = "RNFTPCLIENT_ERROR_CODE_UPLOAD";
-    private final static String RNFTPCLIENT_ERROR_CODE_CANCELUPLOAD = "RNFTPCLIENT_ERROR_CODE_CANCELUPLOAD";
-    private final static String RNFTPCLIENT_ERROR_CODE_REMOVE = "RNFTPCLIENT_ERROR_CODE_REMOVE";
-    private final static String RNFTPCLIENT_ERROR_CODE_LOGOUT = "RNFTPCLIENT_ERROR_CODE_LOGOUT";
-    private final static String RNFTPCLIENT_ERROR_CODE_DOWNLOAD = "RNFTPCLIENT_ERROR_CODE_DOWNLOAD";
-    private final static String RNFTPCLIENT_ERROR_CODE_SYSTEMNAME = "RNFTPCLIENT_ERROR_CODE_SYSTEMNAME";
-    private final static String RNFTPCLIENT_ERROR_CODE_DICONNECT = "RNFTPCLIENT_ERROR_CODE_DICONNECT";
-    private static final String EXPECTED_FINGERPRINT = "EXPECTED_FINGERPRINT_HERE";
+    private final static String HTTPCLIENT_PROGRESS_EVENT_NAME = "HTTPCLIENT_PROGRESS_EVENT_NAME";
+    private final static String HTTPCLIENT_ERROR_CODE_LOGIN = "HTTPCLIENT_ERROR_CODE_LOGIN";
+    private final static String HTTPCLIENT_ERROR_CODE_SYSTEM = "HTTPCLIENT_ERROR_CODE_SYSTEM";
+    private final static String HTTPCLIENT_ERROR_CODE_DELETE = "HTTPCLIENT_ERROR_CODE_DELETE";
+    private final static String HTTPCLIENT_ERROR_CODE_LIST = "HTTPCLIENT_ERROR_CODE_LIST";
+    private final static String HTTPCLIENT_ERROR_CODE_UPLOAD = "HTTPCLIENT_ERROR_CODE_UPLOAD";
+    private final static String HTTPCLIENT_ERROR_CODE_CANCEL_UPLOAD = "HTTPCLIENT_ERROR_CODE_CANCEL_UPLOAD";
+    private final static String HTTPCLIENT_ERROR_CODE_DOWNLOAD = "HTTPCLIENT_ERROR_CODE_DOWNLOAD";
+    private final static String HTTPCLIENT_ERROR_CODE_DIRECTORY_CHANGE = "HTTPCLIENT_ERROR_CODE_DIRECTORY_CHANGE";
+    private final static String HTTPCLIENT_ERROR_CODE_DISCONNECT = "HTTPCLIENT_ERROR_CODE_DISCONNECT";
     private final static String ERROR_MESSAGE_CANCELLED = "ERROR_MESSAGE_CANCELLED";
+
+    private final static String HTTPCLIENT_SUCCESS_CODE_LOGIN = "HTTPCLIENT_SUCCESS_CODE_LOGIN";
+    private final static String HTTPCLIENT_SUCCESS_CODE_SYSTEM = "HTTPCLIENT_SUCCESS_CODE_SYSTEM";
+    private final static String HTTPCLIENT_SUCCESS_CODE_DIRECTORY_LIST = "HTTPCLIENT_SUCCESS_CODE_DIRECTORY_LIST";
+    private final static String HTTPCLIENT_SUCCESS_CODE_DIRECTORY_CHANGE = "HTTPCLIENT_SUCCESS_CODE_DIRECTORY_CHANGE";
+    private final static String HTTPCLIENT_SUCCESS_DIRECTORY_DELETE = "HTTPCLIENT_SUCCESS_DIRECTORY_DELETE";
+    private final static String HTTPCLIENT_SUCCESS_DOWNLOAD = "HTTPCLIENT_SUCCESS_DOWNLOAD";
+    private final static String HTTPCLIENT_SUCCESS_FILE_DELETE = "HTTPCLIENT_SUCCESS_FILE_DELETE";
+    private final static String HTTPCLIENT_SUCCESS_FILE_UPLOAD = "HTTPCLIENT_SUCCESS_FILE_UPLOAD";
+    private final static String HTTPCLIENT_SUCCESS_CANCEL_UPLOAD = "HTTPCLIENT_SUCCESS_CANCEL_UPLOAD";
+    private final static String HTTPCLIENT_ERROR_CODE_REMOVE = "HTTPCLIENT_ERROR_CODE_REMOVE";
+    private final static String HTTPCLIENT_ERROR_CODE_LOGOUT = "HTTPCLIENT_ERROR_CODE_LOGOUT";
+    private static final String EXPECTED_FINGERPRINT = "EXPECTED_FINGERPRINT_HERE";
     private static final String FINGERPRINT_EVENT = "FINGERPRINT_EVENT";
     private final ReactApplicationContext reactContext;
     private String ip_address;
@@ -89,35 +86,18 @@ public class RNFtpClientModule extends ReactContextBaseJavaModule {
     private String password;
     private HashMap<String, Thread> uploadingTasks = new HashMap<>();
     private HashMap<String, Thread> downloadingTasks = new HashMap<>();
-    private Promise fingerprintPromise;
-    private String expectedFingerprint;
-//    private FTPClient client;
 
     public RNFtpClientModule(ReactApplicationContext reactContext) {
         super(reactContext);
         this.reactContext = reactContext;
     }
 
-    private static String[] parseLine(String line) {
-        String[] parts = line.split("\\s+");
-
-        String permissions = !parts[0].trim().isEmpty() ? parts[0].trim() : null;
-        String owner = !parts[2].trim().isEmpty() ? parts[2].trim() : null;
-        String group = !parts[3].trim().isEmpty() ? parts[3].trim() : null;
-        String size = !parts[4].trim().isEmpty() ? parts[4].trim() : null;
-        return new String[]{permissions, owner, group, size};
+    @Override
+    public Map<String, Object> getConstants() {
+        final Map<String, Object> constants = new HashMap<>();
+        constants.put(ERROR_MESSAGE_CANCELLED, ERROR_MESSAGE_CANCELLED);
+        return constants;
     }
-
-//    private void login(FTPSClient client) throws Exception {
-//        client.connect(this.ip_address, this.port);
-//        client.execPBSZ(0);
-//        client.execPROT("P");
-//        client.enterLocalPassiveMode();
-//        if (!verifyServerFingerprint(client)) {
-//            throw new IOException("Server fingerprint does not match the expected value.");
-//        }
-//        client.login(this.username, this.password);
-//    }
 
     @ReactMethod
     public void setup(String ip_address, int port, String username, String password) {
@@ -126,95 +106,6 @@ public class RNFtpClientModule extends ReactContextBaseJavaModule {
         this.username = username;
         this.password = password;
         FTPClientManager.getInstance().configure(ip_address, port, username, password);
-    }
-
-//    private void login(FTPSClient client, final Promise promise) throws Exception {
-    private void login(FTPClient client, final Promise promise) throws Exception {
-        client = new FTPSClient();
-        client.addProtocolCommandListener(new PrintCommandListener(new PrintWriter(System.out)));
-        client.setAutodetectUTF8(true);
-        client.setControlEncoding("UTF-8");
-        client.setConnectTimeout(120000);
-        client.setBufferSize(10240);
-        client.setDefaultTimeout(10000);
-        client.setFileType(FTP.BINARY_FILE_TYPE);
-
-        client.connect(this.ip_address, this.port);
-
-        int reply = client.getReplyCode();
-        if (!FTPReply.isPositiveCompletion(reply)) {
-            client.disconnect();
-            throw new IOException("Exception in connecting to FTP Server");
-        }
-
-        client.login(this.username, this.password);
-        client.enterLocalPassiveMode();
-
-        if (client instanceof FTPSClient) {
-            ((FTPSClient) client).execPBSZ(0);
-            ((FTPSClient) client).execPROT("P");
-        }
-
-        client.enterLocalPassiveMode();
-        client.login(this.username, this.password);
-
-        Log.d("Login|R| ", String.valueOf(client.getReplyCode()));
-        Log.d("Login|CE| ", client.getControlEncoding());
-        Log.d("Login|ST| ", client.getSystemType());
-        Log.d("Login|RS| ", client.getReplyString());
-        Log.d("Login|S| ", client.getStatus());
-        Log.d("Login|C| ", String.valueOf(client.getCharset()));
-        Log.d("Login|LHF| ", String.valueOf(client.getListHiddenFiles()));
-        Log.d("Login|PWD| ", client.printWorkingDirectory());
-        Log.d("Login|AAT| ", TrustManagerUtils.getAcceptAllTrustManager().toString());
-    }
-
-    private void logout(FTPClient client) {
-        try {
-            client.logout();
-        } catch (IOException e) {
-            Log.d(TAG, "logout error", e);
-        }
-        try {
-            if (client.isConnected()) {
-                client.disconnect();
-            }
-        } catch (IOException e) {
-            Log.d(TAG, "logout disconnect error", e);
-        }
-    }
-
-    private String getStringByType(int type) {
-        switch (type) {
-            case FTPFile.DIRECTORY_TYPE:
-                return "dir";
-            case FTPFile.FILE_TYPE:
-                return "file";
-            case FTPFile.SYMBOLIC_LINK_TYPE:
-                return "link";
-            case FTPFile.UNKNOWN_TYPE:
-            default:
-                return "unknown";
-        }
-    }
-
-    private String ISO8601StringFromCalender(Calendar calendar) {
-        Date date = calendar.getTime();
-
-        SimpleDateFormat sdf = null;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
-        }
-        sdf.setTimeZone(TimeZone.getDefault());
-        return sdf.format(date);
-    }
-
-    private String makeToken(final String path, final String remoteDestinationDir) {
-        return String.format("%s=>%s", path, remoteDestinationDir);
-    }
-
-    private String makeDownloadToken(final String path, final String remoteDestinationDir) {
-        return String.format("%s<=%s", path, remoteDestinationDir);
     }
 
     private void sendEvent(ReactContext reactContext, String eventName, @Nullable WritableMap params) {
@@ -229,16 +120,7 @@ public class RNFtpClientModule extends ReactContextBaseJavaModule {
         params.putInt("percentage", percentage);
 
         Log.d(TAG, "send progress " + percentage + " to:" + token);
-        this.sendEvent(this.reactContext, RNFTPCLIENT_PROGRESS_EVENT_NAME, params);
-    }
-
-    private String getLocalFilePath(String path, String remotePath) {
-        if (path.endsWith("/")) {
-            int index = remotePath.lastIndexOf("/");
-            return path + remotePath.substring(index + 1);
-        } else {
-            return path;
-        }
+        this.sendEvent(this.reactContext, HTTPCLIENT_PROGRESS_EVENT_NAME, params);
     }
 
     private long getRemoteSize(FTPClient client, String remoteFilePath) throws Exception {
@@ -251,205 +133,337 @@ public class RNFtpClientModule extends ReactContextBaseJavaModule {
         return Long.parseLong(response[1]);
     }
 
-    @Override
-    public Map<String, Object> getConstants() {
-        final Map<String, Object> constants = new HashMap();
-        constants.put(ERROR_MESSAGE_CANCELLED, ERROR_MESSAGE_CANCELLED);
-        return constants;
-    }
-
     @ReactMethod
-    public void loginFTP(Promise promise) {
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    FTPClientManager.getInstance().connect();
-                    promise.resolve(true);
-                } catch (IOException e) {
-                    promise.reject("ERROR_CONNECTING", e.getMessage());
+    public void logins(Promise promise) throws IOException {
+        new Thread(() -> {
+            boolean isSuccess = false;
+            WritableMap params = Arguments.createMap();
+            try {
+                FTPClientManager.getInstance().disconnect();
+
+                FTPClientManager.getInstance().connect();
+                FTPSClient client = FTPClientManager.getInstance().getFtpClient();
+
+                params.putBoolean("status", true);
+                params.putString("message", HTTPCLIENT_SUCCESS_CODE_LOGIN);
+                params.putString("directory", client.printWorkingDirectory());
+                isSuccess = true;
+//                promise.resolve(params);
+
+            } catch (IOException e) {
+                params.putBoolean("status", false);
+                params.putString("message", HTTPCLIENT_ERROR_CODE_LOGIN);
+                params.putString("exception", e.getMessage());
+            } finally {
+                if (isSuccess) {
+                    promise.resolve(params);
+                } else {
+                    String paramsJson = params.toString();
+                    promise.reject("FTP_LOGIN_ERROR", paramsJson);
                 }
             }
         }).start();
     }
-//    public void loginFTP(final Promise promise) throws IOException {
-//        try{
-//            FTPClient client = new FTPClient();
-//            client.addProtocolCommandListener(new PrintCommandListener(new PrintWriter(System.out)));
-//            client.setAutodetectUTF8(true);
-//            client.setControlEncoding("UTF-8");
-//            client.setConnectTimeout(120000);
-//            client.setBufferSize(10240);
-//            client.setDefaultTimeout(10000);
-////            client.setFileType(FTP.BINARY_FILE_TYPE);
-//            client.enterLocalPassiveMode();
-//
-//            if (client instanceof FTPSClient) {
-//                ((FTPSClient) client).execPBSZ(0);
-//                ((FTPSClient) client).execPROT("P");
-//            }
-//
-//            client.connect(this.ip_address, this.port);
-//            client.login(this.username, this.password);
-//            int reply = client.getReplyCode();
-//            if (!FTPReply.isPositiveCompletion(reply)) {
-//                client.disconnect();
-//                throw new IOException("Exception in connecting to FTP Server");
-//            }
-//
-////            client.login(this.username, this.password);
-////            client.enterLocalPassiveMode();
-//
-////            if (client instanceof FTPSClient) {
-////                ((FTPSClient) client).execPBSZ(0);
-////                ((FTPSClient) client).execPROT("P");
-////            }
-//
-////            client.enterLocalPassiveMode();
-////            client.login(this.username, this.password);
-//
-//            Log.d("Login|R| ", String.valueOf(client.getReplyCode()));
-//            Log.d("Login|CE| ", client.getControlEncoding());
-//            Log.d("Login|ST| ", client.getSystemType());
-//            Log.d("Login|RS| ", client.getReplyString());
-//            Log.d("Login|S| ", client.getStatus());
-//            Log.d("Login|C| ", String.valueOf(client.getCharset()));
-//            Log.d("Login|LHF| ", String.valueOf(client.getListHiddenFiles()));
-//            Log.d("Login|PWD| ", client.printWorkingDirectory());
-//            Log.d("Login|AAT| ", TrustManagerUtils.getAcceptAllTrustManager().toString());
-//
-//            promise.resolve(client);
-//        } catch (Exception e) {
-//            promise.reject("ERROR", e.getMessage());
-//            Log.e("Erroor", Objects.requireNonNull(e.getLocalizedMessage()));
-//        } finally {
-//            promise.resolve(true);
-//        }
-//    }
 
     @ReactMethod
-    public void list(final String path, final Promise promise) {
+    public void performHandshakeConfirmation(Promise promise) {
+        new Thread(() -> {
+            WritableMap params = Arguments.createMap();
+            StringWriter handshakeLogWriter = new StringWriter();
+            PrintWriter handshakePrintWriter = new PrintWriter(handshakeLogWriter);
+            try {
+                FTPSClient ftpClient = new FTPSClient("TLS");
+                ftpClient.addProtocolCommandListener(new PrintCommandListener(handshakePrintWriter));
+                ftpClient.setAutodetectUTF8(true);
+                ftpClient.setControlEncoding("UTF-8");
+                ftpClient.setConnectTimeout(60000);
+                ftpClient.setBufferSize(10240);
+                ftpClient.setDefaultTimeout(10000);
 
-//        new Thread(new Runnable() {
-//            @Override
-//            public void run() {
-//                try {
-//
-//
-//                        promise.reject("ERROR_NOT_CONNECTED", "FTP Client is not connected.");
-//                    }
-//                } catch (IOException e) {
-//                    promise.reject("ERROR_CHANGING_DIRECTORY", e.getMessage());
-//                }
-//            }
-//        }).start();
+                // Enable SSL debugging
+                System.setProperty("javax.net.debug", "ssl,handshake");
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
+                // Setting the protocols and cipher suites explicitly if needed
+                ftpClient.setEnabledProtocols(new String[]{"TLSv1.2", "TLSv1.3"});
+                ftpClient.setEnabledCipherSuites(new String[]{
+                        "TLS_AES_128_GCM_SHA256",
+                        "TLS_AES_256_GCM_SHA384",
+                        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+                        "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+                });
+
+                ftpClientManager.setFtpClient(ftpClient);
+
+                ftpClient.connect(ftpClientManager.getIpAddress(), ftpClientManager.getPort());
+                ftpClient.execPBSZ(0);
+                ftpClient.execPROT("P");
+                ftpClient.enterLocalPassiveMode();
+
+                // Perform SSL handshake verification
+                if (ftpClient.getNeedClientAuth()) {
+                    throw new SSLException("Client authentication required by server.");
+                }
+
+                // Handshake successful
+                String handshakeLogs = handshakeLogWriter.toString();
+                params.putBoolean("status", true);
+                params.putString("message", "SSL handshake successful. Do you want to proceed?");
+                params.putString("handshakeLogs", handshakeLogs);
+                promise.resolve(params);
+            } catch (Exception e) {
+                Log.e("RNFtpClientModule", "Handshake failed", e);
+                String handshakeLogs = handshakeLogWriter.toString();
+                params.putBoolean("status", false);
+                params.putString("message", "SSL handshake failed: " + e.getMessage());
+                params.putString("handshakeLogs", handshakeLogs);
+                promise.reject("HANDSHAKE_ERROR", params);
+            } finally {
+                handshakePrintWriter.close();
+            }
+        }).start();
+    }
+
+    @ReactMethod
+    public void userConfirmation(boolean confirmed) {
+        if (confirmed) {
+            try {
+                ftpClientManager.connect();
+                WritableMap params = Arguments.createMap();
+                params.putBoolean("status", true);
+                params.putString("message", "Login successful");
+                params.putString("directory", ftpClientManager.getFtpClient().printWorkingDirectory());
+                connectPromise.resolve(params);
+            } catch (IOException e) {
+                WritableMap params = Arguments.createMap();
+                params.putBoolean("status", false);
+                params.putString("message", "Login failed");
+                params.putString("exception", e.getMessage());
+                connectPromise.reject("LOGIN_ERROR", params);
+            }
+        } else {
+            WritableMap params = Arguments.createMap();
+            params.putBoolean("status", false);
+            params.putString("message", "User cancelled the action");
+            connectPromise.reject("USER_CANCELLED", params);
+        }
+    }
+
+    @ReactMethod
+    public void login(Promise promise) {
+        this.connectPromise = promise;
+        performHandshakeConfirmation(promise);
+    }
+
+    @ReactMethod
+    public void getSystemDetails(final Promise promise) {
+        WritableMap params = Arguments.createMap();
+        try {
+            FTPSClient client = FTPClientManager.getInstance().getFtpClient();
+            WritableMap data = Arguments.createMap();
+
+            data.putString("systemType", client.getSystemType());
+            data.putString("status", client.getStatus());
+            data.putString("replyString", client.getReplyString());
+            data.putString("controlEncoding", client.getControlEncoding());
+            data.putInt("reply", client.getReply());
+            data.putInt("replyCode", client.getReplyCode());
+            data.putInt("bufferSize", client.getBufferSize());
+            data.putInt("localPort", client.getLocalPort());
+            data.putInt("passivePort", client.getPassivePort());
+            data.putInt("dataConnectionMode", client.getDataConnectionMode());
+            data.putInt("defaultPort", client.getDefaultPort());
+            data.putInt("receiveDataSocketBufferSize", client.getReceiveDataSocketBufferSize());
+            data.putInt("sendDataSocketBufferSize", client.getSendDataSocketBufferSize());
+            data.putBoolean("enableSessionCreation", client.getEnableSessionCreation());
+            data.putString("hostnameVerifier", client.getHostnameVerifier().toString());
+            data.putInt("remotePort", client.getRemotePort());
+            data.putString("systemName", client.getSystemName());
+            data.putString("hostAddress", client.getPassiveLocalIPAddress().getHostAddress());
+            data.putString("hostName", client.getPassiveLocalIPAddress().getHostName());
+            data.putString("canonicalHostName", client.getPassiveLocalIPAddress().getCanonicalHostName());
+            data.putString("address", Arrays.toString(client.getPassiveLocalIPAddress().getAddress()));
+            data.putString("passiveHost", client.getPassiveHost());
+            data.putString("passiveHostAddress", client.getPassiveLocalIPAddress().getHostAddress());
+            data.putString("localAddress", client.getLocalAddress().getHostAddress());
+
+            params.putBoolean("status", true);
+            params.putString("message", HTTPCLIENT_SUCCESS_CODE_SYSTEM);
+            params.putMap("data", data);
+            promise.resolve(params);
+        } catch (Exception e) {
+            Log.d("getSystemDetails", "getSystemDetails Exception", e);
+            params.putBoolean("status", false);
+            params.putString("message", HTTPCLIENT_ERROR_CODE_SYSTEM);
+            params.putString("exception", e.getMessage());
+            promise.reject("", params);
+        }
+    }
+
+    @ReactMethod
+    public void getDirectory(final String path, final Promise promise) {
+        new Thread(() -> {
+            WritableMap params = Arguments.createMap();
+            boolean isSuccess = false;
+            try {
+                FTPSClient client = FTPClientManager.getInstance().getFtpClient();
                 FTPFile[] files = new FTPFile[0];
-                try {
-                    FTPSClient client = FTPClientManager.getInstance().getFtpClient();
-                    if (client != null && client.isConnected()) {
-                        //login(client, promise);
-                        files = client.listFiles(path);
-                        WritableArray arrfiles = Arguments.createArray();
-                        for (FTPFile file : files) {
-                            String[] rawData = parseLine(file.getRawListing());
-                            WritableMap tmp = Arguments.createMap();
-                            tmp.putString("group", file.getGroup());
-                            tmp.putInt("hardLinkCount", file.getHardLinkCount());
-                            tmp.putString("link", file.getLink());
-                            tmp.putString("link", file.getLink());
-                            tmp.putString("name", file.getName());
-                            tmp.putString("rawListing", file.getRawListing());
-                            tmp.putInt("size", (int) file.getSize());
-                            tmp.putString("timestamp", ISO8601StringFromCalender(file.getTimestamp()));
-                            tmp.putString("type", getStringByType(file.getType()));
-                            tmp.putString("user", file.getUser());
-                            tmp.putBoolean("isDirectory", file.isDirectory());
-                            tmp.putBoolean("isFile", file.isFile());
-                            tmp.putBoolean("isSymbolicLink", file.isSymbolicLink());
-                            tmp.putBoolean("isUnknown", file.isUnknown());
-                            tmp.putBoolean("isValid", file.isValid());
-                            tmp.putString("toFormattedString", file.toFormattedString());
-                            tmp.putString("toString", file.toString());
-                            tmp.putString("permissions", rawData[0]);
-                            tmp.putString("owner", rawData[1]);
+                if (client != null && client.isConnected()) {
+                    WritableArray directory = Arguments.createArray();
+                    files = client.listFiles(path);
+                    for (FTPFile file : files) {
+                        WritableMap tmp = Arguments.createMap();
+                        String[] rawData = parseLine(file.getRawListing());
+                        tmp.putString("group", file.getGroup());
+                        tmp.putInt("hardLinkCount", file.getHardLinkCount());
+                        tmp.putString("link", file.getLink());
+                        tmp.putString("link", file.getLink());
+                        tmp.putString("name", file.getName());
+                        tmp.putString("rawListing", file.getRawListing());
+                        tmp.putInt("size", (int) file.getSize());
+                        tmp.putString("timestamp", ISO8601StringFromCalender(file.getTimestamp()));
+                        tmp.putString("type", getStringByType(file.getType()));
+                        tmp.putString("user", file.getUser());
+                        tmp.putBoolean("isDirectory", file.isDirectory());
+                        tmp.putBoolean("isFile", file.isFile());
+                        tmp.putBoolean("isSymbolicLink", file.isSymbolicLink());
+                        tmp.putBoolean("isUnknown", file.isUnknown());
+                        tmp.putBoolean("isValid", file.isValid());
+                        tmp.putString("toFormattedString", file.toFormattedString());
+                        tmp.putString("toString", file.toString());
+                        tmp.putString("permissions", rawData[0]);
+                        tmp.putString("owner", rawData[1]);
+                        directory.pushMap(tmp);
+                    }
+                    isSuccess = true;
+                    params.putBoolean("status", true);
+                    params.putString("message", HTTPCLIENT_SUCCESS_CODE_DIRECTORY_LIST);
+                    params.putArray("data", directory);
+                    Log.d("isSuccess", "getdirectory |1| true");
 
-                            arrfiles.pushMap(tmp);
-                        }
-                        promise.resolve(arrfiles);
-                    }
-                    else {
-                        promise.reject("ERROR_NOT_CONNECTED", "FTP Client is not connected.");
-                    }
-                } catch (Exception e) {
-                    promise.reject(RNFTPCLIENT_ERROR_CODE_LIST, e.getMessage());
-                } finally {
-                    //logout(client);
-                    promise.reject(RNFTPCLIENT_ERROR_CODE_LOGIN, "Connection is not open");
+                } else {
+                    params.putBoolean("status", false);
+                    params.putString("message", HTTPCLIENT_ERROR_CODE_LIST);
+                    params.putString("exception", "FTP Client is not connected.");
+                    Log.d("isSuccess", "getdirectory |2| false");
+//                    promise.reject("", params);
                 }
+            } catch (Exception e) {
+                params.putBoolean("status", false);
+                params.putString("message", HTTPCLIENT_ERROR_CODE_LIST);
+                params.putString("exception", e.getMessage());
+                Log.d("isSuccess", "getdirectory |3| false");
+//                promise.reject("", params);
+            } finally {
+                if (isSuccess){
+                    Log.d("isSuccess", "getdirectory || true");
+                    promise.resolve(params);
+                }
+                else{
+                    Log.d("isSuccess", "getdirectory || false");
+                    promise.reject("", params);
+                }
+
             }
         }).start();
     }
 
     @ReactMethod
-    public void remove(final String path, final Promise promise) {
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                FTPSClient client = new FTPSClient();
-                try {
-                   // login(client, promise);
-                    if (path.endsWith(File.separator)) {
-                        client.removeDirectory(path);
-                    } else {
-                        client.deleteFile(path);
-                    }
-                    promise.resolve(true);
-                } catch (Exception e) {
-                    promise.reject("ERROR", e.getMessage());
-                } finally {
-                    logout(client);
+    public void changeDirectory(String directory, Promise promise) {
+        new Thread(() -> {
+            WritableMap params = Arguments.createMap();
+            try {
+                FTPSClient client = FTPClientManager.getInstance().getFtpClient();
+                if (client != null && client.isConnected()) {
+                    client.changeWorkingDirectory(directory);
+                    params.putBoolean("status", true);
+                    params.putString("message", HTTPCLIENT_SUCCESS_CODE_DIRECTORY_CHANGE);
+                    params.putString("data", directory);
+                    promise.resolve(params);
+                } else {
+                    params.putBoolean("status", false);
+                    params.putString("message", HTTPCLIENT_ERROR_CODE_DIRECTORY_CHANGE);
+                    params.putString("exception", "FTP Client is not connected.");
+                    promise.reject("", params);
                 }
+            } catch (IOException e) {
+                params.putBoolean("status", false);
+                params.putString("message", HTTPCLIENT_ERROR_CODE_DIRECTORY_CHANGE);
+                params.putString("exception", e.getMessage());
+                promise.reject("", params);
             }
         }).start();
     }
 
     @ReactMethod
-    public void uploadFile(final String path, final String remoteDestinationPath, final Promise promise) {
+    public void delete(final String path, final Promise promise) {
+        new Thread(() -> {
+            WritableMap params = Arguments.createMap();
+            try {
+                FTPSClient client = FTPClientManager.getInstance().getFtpClient();
+                if (path.endsWith(File.separator)) {
+                    client.removeDirectory(path);
+                    params.putString("message", HTTPCLIENT_SUCCESS_DIRECTORY_DELETE);
+                    params.putString("data", path + " directory successfully deleted ");
+                } else {
+                    client.deleteFile(path);
+                    params.putString("message", HTTPCLIENT_SUCCESS_FILE_DELETE);
+                    params.putString("data", path + " file successfully deleted ");
+                }
+                params.putBoolean("status", true);
+                promise.resolve(params);
+            } catch (Exception e) {
+                Log.d("delete", "delete Exception", e);
+                params.putBoolean("status", false);
+                params.putString("message", HTTPCLIENT_ERROR_CODE_DELETE);
+                params.putString("exception", e.getMessage());
+                promise.reject("", params);
+            } finally {
+                params.putBoolean("status", false);
+                params.putString("message", HTTPCLIENT_ERROR_CODE_DELETE);
+                params.putString("exception", "Please try again");
+                promise.reject("", params);
+            }
+        }).start();
+    }
+
+    @ReactMethod
+    public void upload(final String path, final String remoteDestinationPath, final Promise promise) {
         final String token = makeToken(path, remoteDestinationPath);
+        WritableMap params = Arguments.createMap();
         if (uploadingTasks.containsKey(token)) {
-            promise.reject(RNFTPCLIENT_ERROR_CODE_UPLOAD, "same upload is runing");
+            params.putBoolean("status", false);
+            params.putString("message", HTTPCLIENT_ERROR_CODE_UPLOAD);
+            params.putString("exception", "Same file upload is running");
+            promise.reject("", params);
             return;
         }
         if (uploadingTasks.size() >= MAX_UPLOAD_COUNT) {
-            promise.reject(RNFTPCLIENT_ERROR_CODE_UPLOAD, "has reach max uploading tasks");
+            params.putBoolean("status", false);
+            params.putString("message", HTTPCLIENT_ERROR_CODE_UPLOAD);
+            params.putString("exception", "Reached max uploading tasks");
+            promise.reject("", params);
             return;
         }
         final Thread t =
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        FTPSClient client = new FTPSClient();
-                        try {
-                            login(client, promise);
+                new Thread(() -> {
+                    try {
+                        FTPSClient client = FTPClientManager.getInstance().getFtpClient();
+                        if (client != null && client.isConnected()) {
                             client.setFileType(FTP.BINARY_FILE_TYPE);
                             File localFile = new File(path);
                             long totalBytes = localFile.length();
                             long finishBytes = 0;
 
-                            String remoteFile = remoteDestinationPath;
                             InputStream inputStream = new FileInputStream(localFile);
 
                             Log.d(TAG, "Start uploading file");
 
-                            OutputStream outputStream = client.storeFileStream(remoteFile);
+                            OutputStream outputStream = client.storeFileStream(remoteDestinationPath);
                             byte[] bytesIn = new byte[4096];
                             int read = 0;
 
                             sendProgressEventToToken(token, 0);
+
                             Log.d(TAG, "Resolve token:" + token);
                             int lastPercentage = 0;
                             while ((read = inputStream.read(bytesIn)) != -1 && !Thread.currentThread().isInterrupted()) {
@@ -465,26 +479,39 @@ public class RNFtpClientModule extends ReactContextBaseJavaModule {
                             outputStream.close();
                             Log.d(TAG, "Finish uploading");
 
-                            //if not interrupted
                             if (!Thread.currentThread().isInterrupted()) {
                                 boolean done = client.completePendingCommand();
-
                                 if (done) {
-                                    promise.resolve(true);
+                                    params.putBoolean("status", true);
+                                    params.putString("message", HTTPCLIENT_SUCCESS_FILE_UPLOAD);
+                                    params.putString("data", localFile.getName() + " uploaded successfully...");
+                                    promise.resolve(params);
                                 } else {
-                                    promise.reject(RNFTPCLIENT_ERROR_CODE_UPLOAD, localFile.getName() + " is not uploaded successfully.");
-                                    client.deleteFile(remoteFile);
+                                    params.putBoolean("status", false);
+                                    params.putString("message", HTTPCLIENT_ERROR_CODE_UPLOAD);
+                                    params.putString("exception", localFile.getName() + " is not uploaded successfully...");
+                                    promise.reject("", params);
+                                    client.deleteFile(remoteDestinationPath);
                                 }
                             } else {
-                                //interupted, the file will deleted by cancel update operation
-                                promise.reject(RNFTPCLIENT_ERROR_CODE_UPLOAD, ERROR_MESSAGE_CANCELLED);
+                                params.putBoolean("status", false);
+                                params.putString("message", HTTPCLIENT_ERROR_CODE_UPLOAD);
+                                params.putString("exception", localFile.getName() + " uploading interrupted..." + ERROR_MESSAGE_CANCELLED);
+                                promise.reject("", params);
                             }
-                        } catch (Exception e) {
-                            promise.reject(RNFTPCLIENT_ERROR_CODE_UPLOAD, e.getMessage());
-                        } finally {
-                            uploadingTasks.remove(token);
-                            logout(client);
+                        } else {
+                            params.putBoolean("status", false);
+                            params.putString("message", HTTPCLIENT_ERROR_CODE_UPLOAD);
+                            params.putString("exception", "FTP Client is not connected.");
+                            promise.reject("", params);
                         }
+                    } catch (IOException e) {
+                        params.putBoolean("status", false);
+                        params.putString("message", HTTPCLIENT_ERROR_CODE_UPLOAD);
+                        params.putString("exception", e.getMessage());
+                        promise.reject("", params);
+                    } finally {
+                        uploadingTasks.remove(token);
                     }
                 });
         t.start();
@@ -492,86 +519,86 @@ public class RNFtpClientModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void cancelUploadFile(final String token, final Promise promise) {
-
+    public void cancelUpload(final String token, final Promise promise) {
         Thread upload = uploadingTasks.get(token);
-
+        WritableMap params = Arguments.createMap();
         if (upload == null) {
-            promise.reject(RNFTPCLIENT_ERROR_CODE_UPLOAD, "token is wrong");
+            params.putBoolean("status", false);
+            params.putString("message", HTTPCLIENT_ERROR_CODE_CANCEL_UPLOAD);
+            params.putString("exception", "There is no uploading task found with provided token");
+            promise.reject("", params);
             return;
         }
-        upload.interrupt();
-        FTPSClient client = new FTPSClient();
-        try {
-            upload.join();
-            login(client, promise);
-            String remoteFile = token.split("=>")[1];
-            client.deleteFile(remoteFile);
-        } catch (Exception e) {
-            Log.d(TAG, "cancel upload error", e);
-        } finally {
-            logout(client);
-        }
-        uploadingTasks.remove(token);
-        promise.resolve(true);
-    }
 
-    @ReactMethod
-    public void disconnect(final Promise promise) {
-        FTPSClient client = new FTPSClient();
         try {
-            logout(client);
-            promise.resolve(true);
-        } catch (Exception e) {
-            Log.d(TAG, "disconnect error", e);
-            promise.reject(RNFTPCLIENT_ERROR_CODE_DICONNECT, e.getMessage());
-        } finally {
-            logout(client);
-            promise.resolve(true);
-        }
-        promise.resolve(false);
-    }
+            upload.interrupt();
+            FTPSClient client = FTPClientManager.getInstance().getFtpClient();
+            if (client != null && client.isConnected()) {
+                upload.join();
+                String remoteFile = token.split("=>")[1];
+                client.deleteFile(remoteFile);
+                uploadingTasks.remove(token);
 
-    @ReactMethod
-    public void getSystemName(final Promise promise) {
-        FTPSClient client = new FTPSClient();
-        try {
-            String systemType = client.getSystemType();
-            promise.resolve(systemType);
-        } catch (Exception e) {
-            Log.d(TAG, "getSystemName error", e);
-            promise.reject(RNFTPCLIENT_ERROR_CODE_SYSTEMNAME, e.getMessage());
+                params.putBoolean("status", true);
+                params.putString("message", HTTPCLIENT_SUCCESS_CANCEL_UPLOAD);
+                params.putString("data", "Uploading cancelled successfully...");
+                promise.resolve(params);
+            } else {
+                params.putBoolean("status", false);
+                params.putString("message", HTTPCLIENT_ERROR_CODE_CANCEL_UPLOAD);
+                params.putString("exception", "FTP Client is not connected.");
+                promise.reject("", params);
+            }
+        } catch (InterruptedException | IOException e) {
+            params.putBoolean("status", false);
+            params.putString("message", HTTPCLIENT_ERROR_CODE_CANCEL_UPLOAD);
+            params.putString("exception", e.getMessage());
+            promise.reject("", params);
+            throw new RuntimeException(e);
         }
     }
 
     @ReactMethod
-    public void downloadFile(final String path, final String remoteDestinationPath, final Promise promise) {
+    public void download(final String path, final String remoteDestinationPath, final Promise promise) {
         final String token = makeDownloadToken(path, remoteDestinationPath);
+        WritableMap params = Arguments.createMap();
         if (downloadingTasks.containsKey(token)) {
-            promise.reject(RNFTPCLIENT_ERROR_CODE_DOWNLOAD, "same downloading task is runing");
+            params.putBoolean("status", false);
+            params.putString("message", HTTPCLIENT_ERROR_CODE_DOWNLOAD);
+            params.putString("exception", "There is already same downloading task running");
+            promise.reject("", params);
             return;
         }
         if (downloadingTasks.size() >= MAX_DOWNLOAD_COUNT) {
-            promise.reject(RNFTPCLIENT_ERROR_CODE_DOWNLOAD, "has reach max downloading tasks");
+            params.putBoolean("status", false);
+            params.putString("message", HTTPCLIENT_ERROR_CODE_DOWNLOAD);
+            params.putString("exception", "Reached maximum downloading tasks...");
+            promise.reject("", params);
             return;
         }
         if (remoteDestinationPath.endsWith("/")) {
-            promise.reject(RNFTPCLIENT_ERROR_CODE_DOWNLOAD, "remote path can not be a dir");
+            params.putBoolean("status", false);
+            params.putString("message", HTTPCLIENT_ERROR_CODE_DOWNLOAD);
+            params.putString("exception", "Provided correct remote path to download it...");
+            promise.reject("", params);
             return;
         }
 
         final Thread t =
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        FTPSClient client = new FTPSClient();
-                        try {
-                            login(client, promise);
+                new Thread(() -> {
+                    try {
+                        FTPSClient client = FTPClientManager.getInstance().getFtpClient();
+                        if (client != null && client.isConnected()) {
                             client.setFileType(FTP.BINARY_FILE_TYPE);
 
                             final long totalBytes = getRemoteSize(client, remoteDestinationPath);
                             File downloadFile = new File(getLocalFilePath(path, remoteDestinationPath));
+
                             if (downloadFile.exists()) {
+                                params.putBoolean("status", false);
+                                params.putString("message", HTTPCLIENT_ERROR_CODE_DOWNLOAD);
+                                params.putString("data", String.format("Locally file already exist", downloadFile.getAbsolutePath()));
+                                promise.reject("", params);
                                 throw new Error(String.format("local file exist", downloadFile.getAbsolutePath()));
                             }
                             File parentDir = downloadFile.getParentFile();
@@ -605,27 +632,41 @@ public class RNFtpClientModule extends ReactContextBaseJavaModule {
                             outputStream.close();
                             Log.d(TAG, "Finish uploading");
 
-                            //if not interrupted
                             if (!Thread.currentThread().isInterrupted()) {
                                 boolean done = client.completePendingCommand();
-
                                 if (done) {
-                                    promise.resolve(true);
+                                    params.putBoolean("status", true);
+                                    params.putString("message", HTTPCLIENT_SUCCESS_DOWNLOAD);
+                                    params.putString("data", downloadFile.getName() + " file/folder downloaded successfully...");
+                                    promise.resolve(params);
                                 } else {
-                                    promise.reject(RNFTPCLIENT_ERROR_CODE_DOWNLOAD, downloadFile.getName() + " is not download successfully.");
+                                    params.putBoolean("status", false);
+                                    params.putString("message", HTTPCLIENT_ERROR_CODE_DOWNLOAD);
+                                    params.putString("exception", downloadFile.getName() + " file/folder download not successfully...");
+                                    promise.reject("", params);
                                     downloadFile.delete();
                                 }
                             } else {
-                                //interupted, the file will deleted by cancel download operation
-                                promise.reject(RNFTPCLIENT_ERROR_CODE_DOWNLOAD, ERROR_MESSAGE_CANCELLED);
+                                params.putBoolean("status", false);
+                                params.putString("message", HTTPCLIENT_ERROR_CODE_DOWNLOAD);
+                                params.putString("exception", downloadFile.getName() + " file/folder download interrupted..." + ERROR_MESSAGE_CANCELLED);
+                                promise.reject("", params);
                                 downloadFile.delete();
                             }
-                        } catch (Exception e) {
-                            promise.reject(RNFTPCLIENT_ERROR_CODE_DOWNLOAD, e.getMessage());
-                        } finally {
-                            downloadingTasks.remove(token);
-                            logout(client);
+                        } else {
+                            params.putBoolean("status", false);
+                            params.putString("message", HTTPCLIENT_ERROR_CODE_DOWNLOAD);
+                            params.putString("exception", "FTP Client is not connected.");
+                            promise.reject("", params);
                         }
+                    } catch (Exception e) {
+                        params.putBoolean("status", false);
+                        params.putString("message", HTTPCLIENT_ERROR_CODE_DOWNLOAD);
+                        params.putString("exception", e.getMessage());
+                        promise.reject("", params);
+                        throw new RuntimeException(e);
+                    } finally {
+                        downloadingTasks.remove(token);
                     }
                 });
         t.start();
@@ -633,12 +674,12 @@ public class RNFtpClientModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void cancelDownloadFile(final String token, final Promise promise) {
+    public void cancelDownload(final String token, final Promise promise) {
 
         Thread download = downloadingTasks.get(token);
 
         if (download == null) {
-            promise.reject(RNFTPCLIENT_ERROR_CODE_DOWNLOAD, "token is wrong");
+            promise.reject(HTTPCLIENT_ERROR_CODE_DOWNLOAD, "token is wrong");
             return;
         }
         download.interrupt();
@@ -651,6 +692,39 @@ public class RNFtpClientModule extends ReactContextBaseJavaModule {
         downloadingTasks.remove(token);
         promise.resolve(true);
     }
+
+    private void logout(FTPClient client) {
+        try {
+            client.logout();
+        } catch (IOException e) {
+            Log.d(TAG, "logout error", e);
+        }
+        try {
+            if (client.isConnected()) {
+                client.disconnect();
+            }
+        } catch (IOException e) {
+            Log.d(TAG, "logout disconnect error", e);
+        }
+    }
+
+
+    @ReactMethod
+    public void disconnect(final Promise promise) {
+        FTPSClient client = new FTPSClient();
+        try {
+            logout(client);
+            promise.resolve(true);
+        } catch (Exception e) {
+            Log.d(TAG, "disconnect error", e);
+            promise.reject(HTTPCLIENT_ERROR_CODE_DISCONNECT, e.getMessage());
+        } finally {
+            logout(client);
+            promise.resolve(true);
+        }
+        promise.resolve(false);
+    }
+
 
     @ReactMethod
     public void getServerFingerprint(final Promise promise) {
